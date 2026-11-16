@@ -1,0 +1,20 @@
+{
+  "name": "tp-final-backend-moscovich-y-sabathie",
+  "version": "1.0.0",
+  "description": "\"# TP-FINAL-Backend-Moscovich-y-Sabathie\"",
+  "homepage": "https://github.com/Juannmlopez/TP-FINAL-Backend-Moscovich-y-Sabathie#readme",
+  "bugs": {
+    "url": "https://github.com/Juannmlopez/TP-FINAL-Backend-Moscovich-y-Sabathie/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Juannmlopez/TP-FINAL-Backend-Moscovich-y-Sabathie.git"
+  },
+  "license": "ISC",
+  "author": "Juan Manuel Sabathie Lopez e Ivan Moscovich Levi",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}
