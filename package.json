@@ -15,6 +15,12 @@
   "type": "commonjs",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "db:setup": "node scripts/db-setup.js",
+    "db:seed": "node scripts/db-setup.js --seed"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.10",
+    "pg": "^8.23.1"
   }
 }
