@@ -1,0 +1,7 @@
+// Punto de entrada: solo levanta el servidor
+const app = require('./app');
+const env = require('./config/env');
+
+app.listen(env.port, () => {
+  console.log(`Servidor escuchando en http://localhost:${env.port}`);
+});

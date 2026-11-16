@@ -1,0 +1,10 @@
+-- =====================================================================
+-- 03_estadisticas.sql — Consultas de referencia para las estadísticas
+-- tipo "Wrapped". NO se ejecuta: el código de services/stats.service.js
+-- usa estas mismas consultas con parámetros.
+--   $1 = user_id
+--   $2 = año (ej. 2026)
+--
+-- PENDIENTE: escribir las consultas (minutos escuchados, top artistas,
+-- top canciones, géneros, etc.) sobre la tabla listening_history.
+-- =====================================================================

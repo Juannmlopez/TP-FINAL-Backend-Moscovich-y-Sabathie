@@ -13,14 +13,18 @@
   "license": "ISC",
   "author": "Juan Manuel Sabathie Lopez e Ivan Moscovich Levi",
   "type": "commonjs",
-  "main": "index.js",
+  "main": "src/server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "db:setup": "node scripts/db-setup.js",
-    "db:seed": "node scripts/db-setup.js --seed"
+    "db:seed": "node scripts/db-setup.js --seed",
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
   },
   "dependencies": {
+    "cors": "^2.8.6",
     "dotenv": "^18.0.10",
+    "express": "^5.3.0",
+    "jsonwebtoken": "^9.0.3",
     "pg": "^8.23.1"
   }
 }
