@@ -1,21 +1,13 @@
-// Servicio de autenticación (registro, login, usuario actual): lógica y consultas SQL
+// Servicio de autenticación y perfil: lógica y consultas SQL. Nunca devuelve password_hash.
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const pool = require('../db');
-const env = require('../config/env');
-const HttpError = require('../utils/HttpError');
+const { pool } = require('../config');
+const { HttpError, logActivity, withTransaction } = require('../utils');
 
-const SALT_ROUNDS = 10;
+// Columnas públicas del usuario (sin password_hash).
+const USER_COLUMNS = 'id, username, email, display_name, bio, avatar_url, created_at';
 
-// Firma el JWT que después lee auth.middleware (sub = id, username)
-function generarToken(user) {
-  return jwt.sign({ sub: String(user.id), username: user.username }, env.jwtSecret, {
-    expiresIn: env.jwtExpiresIn,
-  });
-}
-
-// Datos públicos del usuario (nunca devolvemos password_hash)
-function formatearUsuario(row) {
+// Convierte una fila de users al formato de la API (camelCase, sin password_hash).
+function formatUser(row) {
   return {
     id: String(row.id),
     username: row.username,
@@ -27,86 +19,91 @@ function formatearUsuario(row) {
   };
 }
 
-async function registrar({ username, email, password, displayName }) {
-  const emailNormalizado = email.trim().toLowerCase();
-
-  // Chequeo previo para dar un mensaje claro (el índice único igual lo garantiza)
-  const { rows: existentes } = await pool.query(
-    `SELECT lower(username) = lower($1) AS mismo_username,
-            lower(email)    = lower($2) AS mismo_email
-       FROM users
-      WHERE lower(username) = lower($1) OR lower(email) = lower($2)`,
-    [username, emailNormalizado]
-  );
-  if (existentes.some((r) => r.mismo_username)) {
-    throw new HttpError(409, 'El nombre de usuario ya está en uso');
-  }
-  if (existentes.some((r) => r.mismo_email)) {
-    throw new HttpError(409, 'El email ya está registrado');
-  }
-
-  const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-
-  // Usuario + preferencias por defecto en una sola transacción
-  const client = await pool.connect();
+// Registra un usuario: hashea la contraseña y crea el usuario y sus preferencias en una transacción; 409 si el username o el email ya existen.
+async function register({ username, email, password }) {
+  const passwordHash = await bcrypt.hash(password, 10);
   try {
-    await client.query('BEGIN');
-    const { rows } = await client.query(
-      `INSERT INTO users (username, email, password_hash, display_name)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, username, email, display_name, bio, avatar_url, created_at`,
-      [username, emailNormalizado, passwordHash, displayName?.trim() || null]
-    );
-    const user = rows[0];
-    await client.query('INSERT INTO user_preferences (user_id) VALUES ($1)', [user.id]);
-    await client.query('COMMIT');
-
-    return { token: generarToken(user), user: formatearUsuario(user) };
+    return await withTransaction(async (client) => {
+      const { rows } = await client.query(
+        `INSERT INTO users (username, email, password_hash)
+         VALUES ($1, $2, $3)
+         RETURNING ${USER_COLUMNS}`,
+        [username, email.trim().toLowerCase(), passwordHash]
+      );
+      await client.query('INSERT INTO user_preferences (user_id) VALUES ($1)', [rows[0].id]);
+      return formatUser(rows[0]);
+    });
   } catch (err) {
-    await client.query('ROLLBACK');
-    throw err; // un 23505 (carrera entre dos registros) lo traduce error.middleware a 409
-  } finally {
-    client.release();
+    if (err.code === '23505') {
+      const campo = err.constraint === 'users_username_unique' ? 'El nombre de usuario' : 'El email';
+      throw new HttpError(409, `${campo} ya está en uso`);
+    }
+    throw err;
   }
 }
 
-// Hash válido que se compara cuando el usuario no existe, para que la respuesta
-// tarde lo mismo y no se pueda adivinar qué usuarios están registrados
-const HASH_FALSO = bcrypt.hashSync('contraseña-que-no-existe', SALT_ROUNDS);
-
+// Login por username o email: si el usuario no existe o la contraseña no coincide, 401 con el mismo mensaje.
 async function login({ username, email, password }) {
-  const identificador = (email || username).trim();
-  const columna = email ? 'email' : 'username';
-
   const { rows } = await pool.query(
-    `SELECT id, username, email, password_hash, display_name, bio, avatar_url, created_at
+    `SELECT ${USER_COLUMNS}, password_hash
        FROM users
-      WHERE lower(${columna}) = lower($1)`,
-    [identificador]
+      WHERE lower(username) = lower($1) OR lower(email) = lower($1)`,
+    [(email || username).trim()]
   );
   const user = rows[0];
-
-  const coincide = await bcrypt.compare(password, user ? user.password_hash : HASH_FALSO);
-  if (!user || !coincide) {
-    // Mismo mensaje en los dos casos: no revelamos si el usuario existe
+  if (!user || !(await bcrypt.compare(password, user.password_hash))) {
     throw new HttpError(401, 'Usuario o contraseña incorrectos');
   }
-
-  return { token: generarToken(user), user: formatearUsuario(user) };
+  return formatUser(user);
 }
 
-// Usuario del token (req.user.id). Si lo borraron después de emitir el token → 401
-async function usuarioActual(id) {
-  const { rows } = await pool.query(
-    `SELECT id, username, email, display_name, bio, avatar_url, created_at
-       FROM users
-      WHERE id = $1`,
-    [id]
+// Devuelve el usuario por id; 401 si ya no existe.
+async function me(userId) {
+  const { rows } = await pool.query(`SELECT ${USER_COLUMNS} FROM users WHERE id = $1`, [userId]);
+  if (!rows[0]) throw new HttpError(401, 'El usuario de la sesión ya no existe');
+  return formatUser(rows[0]);
+}
+
+// Devuelve el usuario, sus preferencias (tema e idioma) y sus géneros preferidos.
+async function getProfile(userId) {
+  const user = await me(userId);
+  const { rows: prefs } = await pool.query(
+    'SELECT theme, language FROM user_preferences WHERE user_id = $1',
+    [userId]
   );
-  if (!rows[0]) {
-    throw new HttpError(401, 'El usuario del token ya no existe');
-  }
-  return formatearUsuario(rows[0]);
+  const { rows: genres } = await pool.query(
+    `SELECT g.name
+       FROM user_preferred_genres upg
+       JOIN genres g ON g.id = upg.genre_id
+      WHERE upg.user_id = $1
+      ORDER BY g.name`,
+    [userId]
+  );
+  return {
+    user,
+    preferences: {
+      theme: prefs[0]?.theme ?? 'dark',
+      language: prefs[0]?.language ?? 'es',
+      genres: genres.map((g) => g.name),
+    },
+  };
 }
 
-module.exports = { registrar, login, usuarioActual, generarToken, formatearUsuario };
+// Actualiza los campos enviados (displayName, bio, avatarUrl; los que no vienen quedan igual) y registra 'profile_update'.
+async function updateProfile(userId, { displayName, bio, avatarUrl }) {
+  return withTransaction(async (client) => {
+    const { rows } = await client.query(
+      `UPDATE users
+          SET display_name = COALESCE($2, display_name),
+              bio          = COALESCE($3, bio),
+              avatar_url   = COALESCE($4, avatar_url)
+        WHERE id = $1
+        RETURNING ${USER_COLUMNS}`,
+      [userId, displayName?.trim(), bio?.trim(), avatarUrl]
+    );
+    await logActivity(client, userId, 'profile_update');
+    return formatUser(rows[0]);
+  });
+}
+
+module.exports = { register, login, me, getProfile, updateProfile };

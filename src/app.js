@@ -1,21 +1,33 @@
-// Configura Express: CORS, JSON, rutas y manejo de errores
+// Punto de entrada: configura Express y levanta el servidor.
 const express = require('express');
 const cors = require('cors');
-const env = require('./config/env');
+const cookieParser = require('cookie-parser');
+const { env } = require('./config');
 const routes = require('./routes');
-const { notFound, errorHandler } = require('./middlewares/error.middleware');
+const { notFound, errorHandler } = require('./middlewares');
 
+// Aplicación de Express.
 const app = express();
 
-// Solo el frontend configurado puede llamar a la API
-app.use(cors({ origin: env.frontendUrl }));
+// CORS: solo acepta pedidos del frontend configurado, con cookies.
+app.use(cors({ origin: env.frontendUrl, credentials: true }));
+
+// Convierte el body JSON en req.body.
 app.use(express.json());
 
-// Todas las rutas cuelgan de /api
+// Deja las cookies del pedido en req.cookies.
+app.use(cookieParser());
+
+// Monta todas las rutas bajo /api.
 app.use('/api', routes);
 
-// Siempre al final: 404 y errores
+// Cualquier ruta que no exista responde 404.
 app.use(notFound);
+
+// Manejador de errores (siempre al final).
 app.use(errorHandler);
 
-module.exports = app;
+// Levanta el servidor en el puerto PORT.
+app.listen(env.port, () => {
+  console.log(`Servidor escuchando en http://localhost:${env.port}`);
+});
