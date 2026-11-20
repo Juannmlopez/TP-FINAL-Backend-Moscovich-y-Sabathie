@@ -22,4 +22,14 @@ async function getTrack(req, res) {
   res.json(await service.getTrack(req.user.id, parseId(req.params.id)));
 }
 
-module.exports = { search, getFeatured, getAlbum, getTrack };
+// GET /api/music/artists/:id — detalle de un artista.
+async function getArtist(req, res) {
+  res.json(await service.getArtist(req.user.id, parseId(req.params.id)));
+}
+
+// GET /api/music/artists/:id/albums — discografía de un artista.
+async function getArtistAlbums(req, res) {
+  res.json(await service.getArtistAlbums(parseId(req.params.id)));
+}
+
+module.exports = { search, getFeatured, getAlbum, getTrack, getArtist, getArtistAlbums };

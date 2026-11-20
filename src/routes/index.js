@@ -16,8 +16,8 @@ router.post('/auth/register', validate(v.register), auth.register);
 // Inicia sesión con username o email y setea la cookie.
 router.post('/auth/login', validate(v.login), auth.login);
 
-// Cierra la sesión borrando la cookie.
-router.post('/auth/logout', requireAuth, auth.logout);
+// Cierra la sesión borrando la cookie (pública: responde 200 aunque no haya sesión o esté vencida).
+router.post('/auth/logout', auth.logout);
 
 // Devuelve el usuario de la sesión.
 router.get('/auth/me', requireAuth, auth.me);
@@ -27,6 +27,9 @@ router.get('/users/me', requireAuth, auth.getProfile);
 
 // Edita displayName, bio y/o avatarUrl.
 router.patch('/users/me', requireAuth, validate(v.updateProfile), auth.updateProfile);
+
+// Cambia las preferencias: theme, language y/o géneros preferidos.
+router.put('/users/me/preferences', requireAuth, validate(v.updatePreferences), auth.updatePreferences);
 
 // Busca canciones o álbumes en la API de música (?q=&type=track|album).
 router.get('/music/search', requireAuth, music.search);
@@ -39,6 +42,12 @@ router.get('/music/albums/:id', requireAuth, music.getAlbum);
 
 // Detalle de una canción (:id de Deezer).
 router.get('/music/tracks/:id', requireAuth, music.getTrack);
+
+// Detalle de un artista (:id de Deezer).
+router.get('/music/artists/:id', requireAuth, music.getArtist);
+
+// Discografía de un artista (:id de Deezer).
+router.get('/music/artists/:id/albums', requireAuth, music.getArtistAlbums);
 
 // Devuelve la biblioteca del usuario.
 router.get('/library', requireAuth, library.getLibrary);

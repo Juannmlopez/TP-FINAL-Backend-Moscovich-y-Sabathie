@@ -87,7 +87,7 @@ ORDER BY reproducciones DESC`;
 // Consulta de actividad reciente (las últimas 20 acciones del usuario).
 const SQL_ACTIVIDAD = `
 SELECT a.id, a.type, a.created_at, a.details,
-       c.id AS content_id, c.title, c.cover_url,
+       c.id AS content_id, c.external_id, c.type AS content_type, c.title, c.artist_name, c.cover_url,
        col.id AS collection_id, col.name AS collection_name
 FROM activities a
 LEFT JOIN contents    c   ON c.id   = a.content_id
@@ -155,7 +155,16 @@ async function getActivity(userId) {
       id: String(a.id),
       type: a.type,
       details: a.details,
-      content: a.content_id ? { id: String(a.content_id), title: a.title, coverUrl: a.cover_url } : null,
+      content: a.content_id
+        ? {
+            id: String(a.content_id),
+            externalId: a.external_id,
+            type: a.content_type,
+            title: a.title,
+            artistName: a.artist_name,
+            coverUrl: a.cover_url,
+          }
+        : null,
       collection: a.collection_id ? { id: String(a.collection_id), name: a.collection_name } : null,
       createdAt: a.created_at,
     })),

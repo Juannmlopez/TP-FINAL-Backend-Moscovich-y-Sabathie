@@ -12,7 +12,7 @@ async function fetchFromMusicApi(endpoint) {
     const respuesta = await fetch(MUSIC_API_URL + endpoint, { signal: AbortSignal.timeout(8000) });
     data = await respuesta.json();
   } catch (err) {
-    console.error('Error llamando a la API de música:', err.message);
+    console.error('Error llamando a la API de música:', err.message, err.cause?.code || '');
     throw new HttpError(502, 'La API de música no respondió');
   }
   if (data.error) {
@@ -54,6 +54,21 @@ function mapAlbum(a) {
     releaseDate: fechaValida(a.release_date),
     durationMs: a.duration > 0 ? a.duration * 1000 : null,
     explicit: Boolean(a.explicit_lyrics),
+  };
+}
+
+// Convierte un artista de Deezer a las columnas de contents (title = nombre, coverUrl = foto).
+function mapArtist(a) {
+  return {
+    type: 'artist',
+    externalId: String(a.id),
+    title: a.name,
+    artistName: a.name,
+    albumTitle: null,
+    coverUrl: a.picture_xl || null,
+    releaseDate: null,
+    durationMs: null,
+    explicit: false,
   };
 }
 
@@ -182,4 +197,26 @@ async function getTrack(userId, externalId) {
   return { track: { ...track, genres: genres.map((g) => g.name), ...(await getUserData(userId, track.id)) } };
 }
 
-module.exports = { formatContent, search, getFeatured, getAlbum, getTrack };
+// Trae un artista, lo guarda y lo devuelve con cantidad de fans y álbumes y los datos del usuario.
+async function getArtist(userId, externalId) {
+  const data = await fetchFromMusicApi(`/artist/${externalId}`);
+  const artist = await upsertContent(mapArtist(data));
+  return {
+    artist: {
+      ...artist,
+      fans: data.nb_fan ?? null,
+      albumsCount: data.nb_album ?? null,
+      ...(await getUserData(userId, artist.id)),
+    },
+  };
+}
+
+// Trae la discografía de un artista (hasta 50 álbumes), los guarda y los devuelve.
+async function getArtistAlbums(externalId) {
+  const artista = await fetchFromMusicApi(`/artist/${externalId}`);
+  const data = await fetchFromMusicApi(`/artist/${externalId}/albums?limit=50`);
+  // Los álbumes de este endpoint no traen el artista: se completa con el nombre del artista pedido.
+  return { albums: await upsertMany(data.data.map((a) => ({ ...mapAlbum(a), artistName: artista.name }))) };
+}
+
+module.exports = { formatContent, search, getFeatured, getAlbum, getTrack, getArtist, getArtistAlbums };

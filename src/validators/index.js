@@ -15,22 +15,31 @@ const largoEntre = (v, min, max) => typeof v === 'string' && v.trim().length >= 
 // true si es un id válido: entero positivo, como número o como texto.
 const esId = (v) => /^[1-9]\d{0,17}$/.test(String(v));
 
-// Registro: username de 3 a 30 caracteres [A-Za-z0-9_.], email válido, password de 8 a 72 caracteres y confirmPassword igual.
+// Mensaje de error de un password (o undefined si es válido): de 8 a 72 caracteres.
+const errorPassword = (v) =>
+  typeof v === 'string' && v.length >= 8 && v.length <= 72
+    ? undefined
+    : 'La contraseña debe tener entre 8 y 72 caracteres';
+
+// Mensaje de error de un email (o undefined si es válido); se evalúa con trim.
+const errorEmail = (v) =>
+  typeof v === 'string' && v.trim().length <= 255 && EMAIL_REGEX.test(v.trim()) ? undefined : 'El email no es válido';
+
+// Arma el objeto de errores por campo sacando los campos sin error; {} = válido.
+const porCampo = (campos) => Object.fromEntries(Object.entries(campos).filter(([, msg]) => msg));
+
+// Registro: username de 3 a 30 caracteres [A-Za-z0-9_.], email válido y password de 8 a 72. confirmPassword es opcional (si viene, tiene que coincidir). Devuelve { campo: mensaje }.
 function register({ username, email, password, confirmPassword }) {
-  const errores = [];
-  if (typeof username !== 'string' || !USERNAME_REGEX.test(username)) {
-    errores.push('username: entre 3 y 30 caracteres (letras, números, "_" o ".")');
-  }
-  if (typeof email !== 'string' || email.length > 255 || !EMAIL_REGEX.test(email.trim())) {
-    errores.push('email: no es un email válido');
-  }
-  if (typeof password !== 'string' || password.length < 8 || password.length > 72) {
-    errores.push('password: entre 8 y 72 caracteres');
-  }
-  if (confirmPassword !== password) {
-    errores.push('confirmPassword: no coincide con password');
-  }
-  return errores;
+  return porCampo({
+    username:
+      typeof username === 'string' && USERNAME_REGEX.test(username)
+        ? undefined
+        : 'El usuario debe tener entre 3 y 30 caracteres (letras, números, "_" o ".")',
+    email: errorEmail(email),
+    password: errorPassword(password),
+    confirmPassword:
+      confirmPassword === undefined || confirmPassword === password ? undefined : 'Las contraseñas no coinciden',
+  });
 }
 
 // Login: username o email (uno de los dos) y password.
@@ -59,6 +68,24 @@ function updateProfile({ displayName, bio, avatarUrl }) {
   }
   if (avatarUrl !== undefined && !(typeof avatarUrl === 'string' && /^https?:\/\/\S+$/.test(avatarUrl))) {
     errores.push('avatarUrl: debe ser una URL http(s)');
+  }
+  return errores;
+}
+
+// Preferencias: theme ('dark' o 'light'), language (2 a 5 caracteres) y/o genres (lista de hasta 20 nombres de 1 a 60 caracteres); al menos uno.
+function updatePreferences({ theme, language, genres }) {
+  const errores = [];
+  if (theme === undefined && language === undefined && genres === undefined) {
+    errores.push('Enviar al menos uno de: theme, language, genres');
+  }
+  if (theme !== undefined && !['dark', 'light'].includes(theme)) {
+    errores.push('theme: debe ser dark o light');
+  }
+  if (language !== undefined && !(typeof language === 'string' && /^[a-zA-Z-]{2,5}$/.test(language))) {
+    errores.push('language: código de 2 a 5 caracteres (ej. es, en)');
+  }
+  if (genres !== undefined && !(Array.isArray(genres) && genres.length <= 20 && genres.every((g) => largoEntre(g, 1, 60)))) {
+    errores.push('genres: lista de hasta 20 nombres de 1 a 60 caracteres');
   }
   return errores;
 }
@@ -125,6 +152,7 @@ module.exports = {
   register,
   login,
   updateProfile,
+  updatePreferences,
   addLibraryItem,
   updateLibraryItem,
   rating,

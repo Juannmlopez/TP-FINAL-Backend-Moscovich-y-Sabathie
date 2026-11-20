@@ -35,8 +35,14 @@ async function register({ username, email, password }) {
     });
   } catch (err) {
     if (err.code === '23505') {
-      const campo = err.constraint === 'users_username_unique' ? 'El nombre de usuario' : 'El email';
-      throw new HttpError(409, `${campo} ya está en uso`);
+      const esUsername = err.constraint === 'users_username_unique';
+      throw new HttpError(
+        409,
+        esUsername ? 'El nombre de usuario ya está en uso' : 'El email ya está en uso',
+        esUsername
+          ? { username: 'Ese nombre de usuario ya está en uso' }
+          : { email: 'Ese email ya está registrado' }
+      );
     }
     throw err;
   }
@@ -106,4 +112,34 @@ async function updateProfile(userId, { displayName, bio, avatarUrl }) {
   });
 }
 
-module.exports = { register, login, me, getProfile, updateProfile };
+// Cambia las preferencias enviadas (theme, language; las que no vienen quedan igual) y, si viene genres, reemplaza los géneros preferidos (crea los que no existan). Devuelve el perfil completo.
+async function updatePreferences(userId, { theme, language, genres }) {
+  await withTransaction(async (client) => {
+    await client.query(
+      `INSERT INTO user_preferences (user_id, theme, language)
+       VALUES ($1, COALESCE($2, 'dark'), COALESCE($3, 'es'))
+       ON CONFLICT (user_id) DO UPDATE SET
+         theme    = COALESCE($2, user_preferences.theme),
+         language = COALESCE($3, user_preferences.language)`,
+      [userId, theme, language]
+    );
+    if (genres !== undefined) {
+      await client.query('DELETE FROM user_preferred_genres WHERE user_id = $1', [userId]);
+      for (const nombre of genres) {
+        const { rows } = await client.query(
+          `INSERT INTO genres (name) VALUES ($1)
+           ON CONFLICT ((lower(name))) DO UPDATE SET name = genres.name
+           RETURNING id`,
+          [nombre.trim()]
+        );
+        await client.query(
+          'INSERT INTO user_preferred_genres (user_id, genre_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [userId, rows[0].id]
+        );
+      }
+    }
+  });
+  return getProfile(userId);
+}
+
+module.exports = { register, login, me, updatePreferences, getProfile, updateProfile };

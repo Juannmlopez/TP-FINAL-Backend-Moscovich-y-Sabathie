@@ -22,7 +22,9 @@ function requireAuth(req, res, next) {
 function validate(schema) {
   return (req, res, next) => {
     const errores = schema(req.body || {});
-    if (errores.length > 0) {
+    // Los validadores devuelven un array de textos o un objeto { campo: mensaje }.
+    const hayErrores = Array.isArray(errores) ? errores.length > 0 : Object.keys(errores).length > 0;
+    if (hayErrores) {
       return next(new HttpError(400, 'Datos inválidos', errores));
     }
     next();

@@ -16,10 +16,10 @@ async function login(req, res) {
   res.json({ user });
 }
 
-// POST /api/auth/logout — borra la cookie de sesión y responde 204.
+// POST /api/auth/logout — borra la cookie de sesión (mismas opciones con que se setea) y responde 200, haya o no sesión.
 async function logout(req, res) {
   res.clearCookie('token', cookieOptions);
-  res.status(204).end();
+  res.json({ message: 'Sesión cerrada' });
 }
 
 // GET /api/auth/me — devuelve el usuario de la sesión.
@@ -37,4 +37,9 @@ async function updateProfile(req, res) {
   res.json({ user: await service.updateProfile(req.user.id, req.body) });
 }
 
-module.exports = { register, login, logout, me, getProfile, updateProfile };
+// PUT /api/users/me/preferences — cambia tema, idioma y/o géneros preferidos y devuelve el perfil completo.
+async function updatePreferences(req, res) {
+  res.json(await service.updatePreferences(req.user.id, req.body));
+}
+
+module.exports = { register, login, logout, me, getProfile, updateProfile, updatePreferences };

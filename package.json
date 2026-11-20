@@ -15,8 +15,8 @@
   "type": "commonjs",
   "main": "src/app.js",
   "scripts": {
-    "dev": "node --watch src/app.js",
-    "start": "node src/app.js",
+    "dev": "node --use-system-ca --watch src/app.js",
+    "start": "node --use-system-ca src/app.js",
     "db:setup": "node scripts/db-setup.js",
     "db:seed": "node scripts/db-setup.js --seed"
   },
