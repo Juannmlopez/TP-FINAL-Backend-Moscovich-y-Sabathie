@@ -125,6 +125,7 @@ CREATE TABLE user_preferences (
   user_id           BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   theme             VARCHAR(10) NOT NULL DEFAULT 'dark'  CHECK (theme IN ('dark', 'light')),
   language          VARCHAR(5)  NOT NULL DEFAULT 'es',
+  settings          JSONB       NOT NULL DEFAULT '{}'::jsonb,  -- reproducción, notificaciones y privacidad
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

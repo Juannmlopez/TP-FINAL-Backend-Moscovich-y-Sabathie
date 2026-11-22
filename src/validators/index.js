@@ -54,6 +54,12 @@ function login({ username, email, password }) {
   return errores;
 }
 
+// Recuperar contraseña: email válido.
+function forgotPassword({ email }) {
+  const error = errorEmail(email);
+  return error ? [error] : [];
+}
+
 // Edición de perfil: displayName (1 a 60), bio (hasta 300) y/o avatarUrl; al menos uno.
 function updateProfile({ displayName, bio, avatarUrl }) {
   const errores = [];
@@ -72,11 +78,11 @@ function updateProfile({ displayName, bio, avatarUrl }) {
   return errores;
 }
 
-// Preferencias: theme ('dark' o 'light'), language (2 a 5 caracteres) y/o genres (lista de hasta 20 nombres de 1 a 60 caracteres); al menos uno.
-function updatePreferences({ theme, language, genres }) {
+// Preferencias: theme ('dark' o 'light'), language (2 a 5 caracteres), genres (lista de hasta 20 nombres de 1 a 60 caracteres) y/o settings (objeto libre: reproducción, notificaciones, privacidad); al menos uno.
+function updatePreferences({ theme, language, genres, settings }) {
   const errores = [];
-  if (theme === undefined && language === undefined && genres === undefined) {
-    errores.push('Enviar al menos uno de: theme, language, genres');
+  if (theme === undefined && language === undefined && genres === undefined && settings === undefined) {
+    errores.push('Enviar al menos uno de: theme, language, genres, settings');
   }
   if (theme !== undefined && !['dark', 'light'].includes(theme)) {
     errores.push('theme: debe ser dark o light');
@@ -86,6 +92,9 @@ function updatePreferences({ theme, language, genres }) {
   }
   if (genres !== undefined && !(Array.isArray(genres) && genres.length <= 20 && genres.every((g) => largoEntre(g, 1, 60)))) {
     errores.push('genres: lista de hasta 20 nombres de 1 a 60 caracteres');
+  }
+  if (settings !== undefined && !(typeof settings === 'object' && settings !== null && !Array.isArray(settings) && JSON.stringify(settings).length <= 4000)) {
+    errores.push('settings: objeto de hasta 4000 caracteres');
   }
   return errores;
 }
@@ -149,6 +158,7 @@ function historyEntry({ contentId, msPlayed }) {
 }
 
 module.exports = {
+  forgotPassword,
   register,
   login,
   updateProfile,

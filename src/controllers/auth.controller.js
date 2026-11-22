@@ -42,4 +42,10 @@ async function updatePreferences(req, res) {
   res.json(await service.updatePreferences(req.user.id, req.body));
 }
 
-module.exports = { register, login, logout, me, getProfile, updateProfile, updatePreferences };
+// POST /api/auth/forgot-password — responde siempre 200 con el mismo mensaje, exista o no el email.
+async function forgotPassword(req, res) {
+  await service.forgotPassword(req.body);
+  res.json({ message: 'Si el email está registrado, te enviamos las instrucciones para recuperar la contraseña' });
+}
+
+module.exports = { forgotPassword, register, login, logout, me, getProfile, updateProfile, updatePreferences };

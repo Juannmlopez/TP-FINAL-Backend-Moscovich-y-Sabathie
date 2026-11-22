@@ -74,7 +74,7 @@ async function me(userId) {
 async function getProfile(userId) {
   const user = await me(userId);
   const { rows: prefs } = await pool.query(
-    'SELECT theme, language FROM user_preferences WHERE user_id = $1',
+    'SELECT theme, language, settings FROM user_preferences WHERE user_id = $1',
     [userId]
   );
   const { rows: genres } = await pool.query(
@@ -90,6 +90,7 @@ async function getProfile(userId) {
     preferences: {
       theme: prefs[0]?.theme ?? 'dark',
       language: prefs[0]?.language ?? 'es',
+      settings: prefs[0]?.settings ?? {},
       genres: genres.map((g) => g.name),
     },
   };
@@ -112,16 +113,17 @@ async function updateProfile(userId, { displayName, bio, avatarUrl }) {
   });
 }
 
-// Cambia las preferencias enviadas (theme, language; las que no vienen quedan igual) y, si viene genres, reemplaza los géneros preferidos (crea los que no existan). Devuelve el perfil completo.
-async function updatePreferences(userId, { theme, language, genres }) {
+// Cambia las preferencias enviadas (theme, language, settings; las que no vienen quedan igual; settings se fusiona con lo guardado) y, si viene genres, reemplaza los géneros preferidos (crea los que no existan). Devuelve el perfil completo.
+async function updatePreferences(userId, { theme, language, genres, settings }) {
   await withTransaction(async (client) => {
     await client.query(
-      `INSERT INTO user_preferences (user_id, theme, language)
-       VALUES ($1, COALESCE($2, 'dark'), COALESCE($3, 'es'))
+      `INSERT INTO user_preferences (user_id, theme, language, settings)
+       VALUES ($1, COALESCE($2, 'dark'), COALESCE($3, 'es'), COALESCE($4::jsonb, '{}'::jsonb))
        ON CONFLICT (user_id) DO UPDATE SET
          theme    = COALESCE($2, user_preferences.theme),
-         language = COALESCE($3, user_preferences.language)`,
-      [userId, theme, language]
+         language = COALESCE($3, user_preferences.language),
+         settings = user_preferences.settings || COALESCE($4::jsonb, '{}'::jsonb)`,
+      [userId, theme, language, settings === undefined ? null : JSON.stringify(settings)]
     );
     if (genres !== undefined) {
       await client.query('DELETE FROM user_preferred_genres WHERE user_id = $1', [userId]);
@@ -142,4 +144,9 @@ async function updatePreferences(userId, { theme, language, genres }) {
   return getProfile(userId);
 }
 
-module.exports = { register, login, me, updatePreferences, getProfile, updateProfile };
+// Recuperar contraseña: no revela si el email existe (siempre termina igual). Todavía no hay envío de mails, así que no genera ningún link.
+async function forgotPassword({ email }) {
+  await pool.query('SELECT 1 FROM users WHERE lower(email) = lower($1)', [email.trim()]);
+}
+
+module.exports = { forgotPassword, register, login, me, updatePreferences, getProfile, updateProfile };

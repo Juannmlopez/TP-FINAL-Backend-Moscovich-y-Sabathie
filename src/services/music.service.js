@@ -39,6 +39,7 @@ function mapTrack(t, album = null) {
     releaseDate: fechaValida(t.release_date || album?.release_date),
     durationMs: t.duration > 0 ? t.duration * 1000 : null,
     explicit: Boolean(t.explicit_lyrics),
+    previewUrl: t.preview || null,
   };
 }
 
@@ -106,7 +107,8 @@ async function upsertContent(item) {
     [item.externalId, item.type, item.title, item.artistName, item.albumTitle,
       item.coverUrl, item.releaseDate, item.durationMs, item.explicit]
   );
-  return formatContent(rows[0]);
+  // previewUrl (audio de 30 s de Deezer) no se guarda: vence rápido, se manda fresco en cada respuesta.
+  return { ...formatContent(rows[0]), previewUrl: item.previewUrl ?? null };
 }
 
 // Guarda varios contenidos en orden y los devuelve formateados.
@@ -153,24 +155,25 @@ async function getUserData(userId, contentId) {
   };
 }
 
-// Busca por texto en la API, filtrando por tipo (track o album); guarda los resultados y los devuelve.
+// Busca por texto en la API, filtrando por tipo (track, album o artist); guarda los resultados y los devuelve.
 async function search(q, type = 'track') {
   const texto = typeof q === 'string' ? q.trim() : '';
   if (texto.length < 1 || texto.length > 100) throw new HttpError(400, 'q: entre 1 y 100 caracteres');
-  if (!['track', 'album'].includes(type)) throw new HttpError(400, 'type: debe ser track o album');
+  if (!['track', 'album', 'artist'].includes(type)) throw new HttpError(400, 'type: debe ser track, album o artist');
 
-  const endpoint = type === 'album' ? '/search/album' : '/search';
+  const endpoint = type === 'track' ? '/search' : `/search/${type}`;
   const data = await fetchFromMusicApi(`${endpoint}?limit=25&q=${encodeURIComponent(texto)}`);
-  const mapear = type === 'album' ? mapAlbum : mapTrack;
+  const mapear = { track: mapTrack, album: mapAlbum, artist: mapArtist }[type];
   return { results: await upsertMany(data.data.map((x) => mapear(x))) };
 }
 
-// Trae el chart de la API (canciones y álbumes más escuchados), lo guarda y lo devuelve.
+// Trae el chart de la API (canciones, álbumes y artistas más escuchados), lo guarda y lo devuelve.
 async function getFeatured() {
   const data = await fetchFromMusicApi('/chart/0?limit=10');
   return {
     tracks: await upsertMany(data.tracks.data.map((t) => mapTrack(t))),
     albums: await upsertMany(data.albums.data.map((a) => mapAlbum(a))),
+    artists: await upsertMany((data.artists?.data || []).map((a) => mapArtist(a))),
   };
 }
 

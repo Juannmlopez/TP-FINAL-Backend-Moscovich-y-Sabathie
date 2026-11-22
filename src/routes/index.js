@@ -19,6 +19,9 @@ router.post('/auth/login', validate(v.login), auth.login);
 // Cierra la sesión borrando la cookie (pública: responde 200 aunque no haya sesión o esté vencida).
 router.post('/auth/logout', auth.logout);
 
+// Recuperar contraseña: responde 200 sin revelar si el email existe.
+router.post('/auth/forgot-password', validate(v.forgotPassword), auth.forgotPassword);
+
 // Devuelve el usuario de la sesión.
 router.get('/auth/me', requireAuth, auth.me);
 
@@ -28,10 +31,10 @@ router.get('/users/me', requireAuth, auth.getProfile);
 // Edita displayName, bio y/o avatarUrl.
 router.patch('/users/me', requireAuth, validate(v.updateProfile), auth.updateProfile);
 
-// Cambia las preferencias: theme, language y/o géneros preferidos.
+// Cambia las preferencias: theme, language, settings (reproducción, notificaciones, privacidad) y/o géneros preferidos.
 router.put('/users/me/preferences', requireAuth, validate(v.updatePreferences), auth.updatePreferences);
 
-// Busca canciones o álbumes en la API de música (?q=&type=track|album).
+// Busca canciones o álbumes en la API de música (?q=&type=track|album|artist).
 router.get('/music/search', requireAuth, music.search);
 
 // Devuelve los destacados de la API de música para la Home.
